@@ -1,6 +1,8 @@
 import tkinter as tk
 import heapq
 import time
+import random
+import math
 
 CELL_SIZE = 25
 ROWS = 20
@@ -14,22 +16,37 @@ class App:
         self.start = (0, 0)
         self.goal = (19, 19)
 
+        self.algorithm = tk.StringVar(value="A*")
+        self.heuristic_type = tk.StringVar(value="Manhattan")
+
         self.grid = [[0 for _ in range(COLS)] for _ in range(ROWS)]
+
+        self.create_controls()
 
         self.canvas = tk.Canvas(root, width=COLS*CELL_SIZE,
                                 height=ROWS*CELL_SIZE)
         self.canvas.pack()
 
-        self.button = tk.Button(root, text="Run A*", command=self.run_astar)
-        self.button.pack()
-
-        self.metrics = tk.Label(root, text="")
-        self.metrics.pack()
-
         self.draw_grid()
 
+    def create_controls(self):
+        frame = tk.Frame(self.root)
+        frame.pack()
+
+        tk.OptionMenu(frame, self.algorithm, "A*", "GBFS").pack(side=tk.LEFT)
+        tk.OptionMenu(frame, self.heuristic_type, "Manhattan", "Euclidean").pack(side=tk.LEFT)
+
+        tk.Button(frame, text="Generate Map", command=self.generate_map).pack(side=tk.LEFT)
+        tk.Button(frame, text="Run Search", command=self.run_search).pack(side=tk.LEFT)
+
+        self.metrics = tk.Label(self.root, text="")
+        self.metrics.pack()
+
     def heuristic(self, a, b):
-        return abs(a[0]-b[0]) + abs(a[1]-b[1])
+        if self.heuristic_type.get() == "Manhattan":
+            return abs(a[0]-b[0]) + abs(a[1]-b[1])
+        else:
+            return math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2)
 
     def neighbors(self, node):
         r, c = node
@@ -42,7 +59,14 @@ class App:
                     result.append((nr, nc))
         return result
 
-    def run_astar(self):
+    def generate_map(self):
+        for r in range(ROWS):
+            for c in range(COLS):
+                if (r, c) != self.start and (r, c) != self.goal:
+                    self.grid[r][c] = 1 if random.random() < 0.3 else 0
+        self.draw_grid()
+
+    def run_search(self):
         start_time = time.time()
 
         frontier = []
@@ -60,13 +84,21 @@ class App:
 
             for neighbor in self.neighbors(current):
                 new_g = g_cost[current] + 1
+
                 if neighbor not in g_cost or new_g < g_cost[neighbor]:
                     g_cost[neighbor] = new_g
-                    f = new_g + self.heuristic(neighbor, self.goal)
-                    heapq.heappush(frontier, (f, neighbor))
                     came_from[neighbor] = current
 
+                    if self.algorithm.get() == "A*":
+                        f = new_g + self.heuristic(neighbor, self.goal)
+                    else:
+                        f = self.heuristic(neighbor, self.goal)
+
+                    heapq.heappush(frontier, (f, neighbor))
+
         end_time = time.time()
+
+        self.draw_grid()
         self.draw_path(came_from)
 
         self.metrics.config(
@@ -91,6 +123,10 @@ class App:
         for r in range(ROWS):
             for c in range(COLS):
                 color = "white"
+
+                if self.grid[r][c] == 1:
+                    color = "black"
+
                 if (r, c) == self.start:
                     color = "blue"
                 elif (r, c) == self.goal:
